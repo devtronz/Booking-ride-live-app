@@ -19,28 +19,25 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
-  // USER JOIN
   socket.on("join-user", (userId) => {
     socket.join(`user:${userId}`);
     console.log("User joined:", userId);
   });
 
-  // DRIVER JOIN
   socket.on("join-driver", () => {
     socket.join("drivers");
     console.log("Driver joined");
   });
 
-  // ADMIN JOIN
   socket.on("join-admin", () => {
     socket.join("admin");
     console.log("Admin joined");
   });
 
-  // USER BOOKS RIDE
   socket.on("book-ride", (ride) => {
-    ride.status = "Searching Driver";
+    if (!ride.userId) return;
 
+    ride.status = "Searching Driver";
     io.to("drivers").emit("new-ride", ride);
     io.to("admin").emit("admin-log", {
       type: "BOOK_RIDE",
@@ -48,7 +45,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // DRIVER ACCEPTS
   socket.on("accept-ride", (ride) => {
     ride.status = "Driver Assigned";
 
@@ -60,7 +56,7 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, "0.0.0.0", () => {
   console.log("Server running on", PORT);
 });
