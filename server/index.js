@@ -4,64 +4,63 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
-/* 🔥 HEALTH CHECK */
 app.get("/", (req, res) => {
   res.send("🚕 Booking Ride Server is LIVE");
 });
 
-let pendingOtps = {};
-let riders = {};
-let currentRide = null;
-
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
-  socket.on("send-otp", ({ contact }) => {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    pendingOtps[socket.id] = {
-      contact,
-      otp,
-      expires: Date.now() + 2 * 60 * 1000
-    };
-
-    console.log("OTP:", otp);
-    io.emit("admin-log", `🔐 OTP sent to ${contact} → ${otp}`);
-    socket.emit("otp-sent");
+  // USER JOIN
+  socket.on("join-user", (userId) => {
+    socket.join(`user:${userId}`);
+    console.log("User joined:", userId);
   });
 
-  socket.on("verify-otp", ({ otp }) => {
-    const record = pendingOtps[socket.id];
-    if (!record || record.otp !== otp || Date.now() > record.expires) {
-      socket.emit("otp-result", { success: false, msg: "Invalid/Expired OTP" });
-      return;
-    }
-
-    riders[socket.id] = { contact: record.contact };
-    delete pendingOtps[socket.id];
-
-    io.emit("admin-log", `✅ Rider verified: ${record.contact}`);
-    socket.emit("otp-result", { success: true });
+  // DRIVER JOIN
+  socket.on("join-driver", () => {
+    socket.join("drivers");
+    console.log("Driver joined");
   });
 
+  // ADMIN JOIN
+  socket.on("join-admin", () => {
+    socket.join("admin");
+    console.log("Admin joined");
+  });
+
+  // USER BOOKS RIDE
   socket.on("book-ride", (ride) => {
-    currentRide = { ...ride, status: "REQUESTED" };
-    io.emit("new-ride", currentRide);
-    io.emit("admin-log", "🚕 Ride booked");
+    ride.status = "Searching Driver";
+
+    io.to("drivers").emit("new-ride", ride);
+    io.to("admin").emit("admin-log", {
+      type: "BOOK_RIDE",
+      data: ride
+    });
   });
 
-  socket.on("accept-ride", () => {
-    if (!currentRide) return;
-    currentRide.status = "ACCEPTED";
-    io.emit("ride-update", currentRide);
-    io.emit("admin-log", "✅ Ride accepted");
+  // DRIVER ACCEPTS
+  socket.on("accept-ride", (ride) => {
+    ride.status = "Driver Assigned";
+
+    io.to(`user:${ride.userId}`).emit("ride-update", ride);
+    io.to("admin").emit("admin-log", {
+      type: "ACCEPT_RIDE",
+      data: ride
+    });
   });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log("Server running on", PORT);
 });
