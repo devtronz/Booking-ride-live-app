@@ -40,7 +40,13 @@ h2{
 
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-const socket = io("https://booking-ride-live-app.onrender.com");
+
+const socket = io("https://booking-ride-live-app.onrender.com", {
+  transports: ["websocket"],
+  reconnection: true
+});
+
+  
 const logBox = document.getElementById("logBox");
 
 socket.on("admin-log", (msg) => {
